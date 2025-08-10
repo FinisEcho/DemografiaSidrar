@@ -6,6 +6,10 @@ library(dplyr)
 library(gtsummary)
 #install.packages("stringr")
 library(stringr)
+#install.packages("ggplot2")
+library(ggplot2)
+#install.packages("tidyr")
+library(tidyr)
 
 info_sidra(1209)
 
@@ -169,3 +173,76 @@ razao_dependencia_acre_2022 <- acre_idade2022_simples |>
 
 print("Razão de Dependência por Sexo (Acre - Censo 2022):")
 print(razao_dependencia_acre_2022)
+
+indice_envelhecimento_acre_2022 <- acre_idade2022_simples |> 
+  # Mapear as idades para as categorias de envelhecimento
+  mutate(
+    categoria_idade = case_when(
+      Idade >= 0 & Idade <= 14 ~ "Jovem",
+      Idade >= 65 ~ "Idoso",
+      TRUE ~ "Outros" # Categorizar o restante como "Outros"
+    )
+  ) |> 
+  
+  # Agrupar por ano e sexo
+  group_by(Ano, Sexo) |> 
+  
+  # Calcular a população em cada categoria
+  summarise(
+    pop_jovem = sum(Populacao[categoria_idade == "Jovem"], na.rm = TRUE),
+    pop_idosa = sum(Populacao[categoria_idade == "Idoso"], na.rm = TRUE),
+    .groups = "drop"
+  ) |> 
+  
+  # Calcular o índice de envelhecimento
+  mutate(
+    indice_envelhecimento = (pop_idosa / pop_jovem) * 100
+  )
+
+print("Índice de Envelhecimento por Sexo (Acre - Censo 2022):")
+print(indice_envelhecimento_acre_2022)
+
+# Vamos criar faixas etárias de 5 em 5 anos
+piramide_data <- acre_idade2022_simples |> 
+  mutate(
+    faixa_etaria = cut(
+      x = Idade,
+      breaks = c(seq(0, 100, by = 5), Inf),
+      right = FALSE, # A faixa começa em [0, 5)
+      labels = c("0-4", "5-9", "10-14", "15-19", "20-24", "25-29",
+                 "30-34", "35-39", "40-44", "45-49", "50-54", "55-59",
+                 "60-64", "65-69", "70-74", "75-79", "80-84", "85-89",
+                 "90-94", "95-99", "100+"),
+      ordered_result = TRUE
+    )
+  ) |> 
+  group_by(faixa_etaria, Sexo) |> 
+  summarise(
+    Populacao = sum(Populacao, na.rm = TRUE),
+    .groups = "drop"
+  ) |> 
+  # Transformar a população masculina para valores negativos para a pirâmide
+  mutate(
+    Populacao = if_else(Sexo == "Homens", -Populacao, Populacao)
+  )
+
+# Criar a Pirâmide Etária
+ggplot(piramide_data, aes(x = faixa_etaria, y = Populacao, fill = Sexo)) +
+  geom_bar(stat = "identity", position = "identity") +
+  scale_y_continuous(
+    labels = function(x) { scales::comma(abs(x), big.mark = ".", decimal.mark = ",") },
+    name = "População"
+  ) +
+  coord_flip() + # Inverte os eixos para que a pirâmide seja horizontal
+  labs(
+    title = "Pirâmide Etária do Acre (Censo 2022)",
+    subtitle = "População por sexo e faixas etárias de 5 anos",
+    x = "Faixa Etária",
+    fill = "Sexo"
+  ) +
+  scale_fill_manual(values = c("Homens" = "#1f78b4", "Mulheres" = "#e31a1c")) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5)
+  )

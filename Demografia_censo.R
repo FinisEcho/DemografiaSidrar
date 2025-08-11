@@ -560,3 +560,27 @@ tabela_myers <- tibble(
   `Índice de Myers` = c(indice_myers_2010, indice_myers_2022)
 )
 write.csv(tabela_myers, "tabelas_resultados/tabela_indice_myers.csv", row.names = FALSE)
+
+# --- Criação do dataframe para o gráfico ---
+dados_razao_sexo <- tibble(
+  Ano = c("Censo 2010", "Censo 2022"),
+  Razao_Sexo = c(razao_sexo2010, razao_sexo2022)
+)
+
+# --- Gerando o gráfico ---
+ggplot(dados_razao_sexo, aes(x = Ano, y = Razao_Sexo)) +
+  geom_bar(stat = "identity", fill = "#1f78b4", width = 0.5) +
+  geom_text(aes(label = sprintf("%.2f", Razao_Sexo)), vjust = -0.5, size = 5) + # Adiciona os valores nas barras
+  labs(
+    title = "Razão de Sexo no Acre: Comparativo 2010 vs 2022",
+    subtitle = "Número de homens para cada 100 mulheres",
+    x = "Ano do Censo",
+    y = "Razão de Sexo"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.y = element_blank()
+  )

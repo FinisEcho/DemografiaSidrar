@@ -10,6 +10,10 @@ library(stringr)
 library(ggplot2)
 #install.packages("tidyr")
 library(tidyr)
+#install.packages("knitr")
+library(knitr)
+#install.packages("scales")
+library(scales)
 
 info_sidra(1209)
 
@@ -352,7 +356,7 @@ indice_envelhecimento_acre_2010 <- acre_idade2010_simples |>
       Idade >= 65 ~ "Idoso",
       TRUE ~ "Outros" # Categorizar o restante como "Outros"
     )
-  ) |> 
+  ) |>
   
   # Agrupar por ano e sexo
   group_by(Ano, Sexo) |> 
@@ -417,3 +421,142 @@ ggplot(piramide_data, aes(x = faixa_etaria, y = Populacao, fill = Sexo)) +
     plot.subtitle = element_text(hjust = 0.5)
   )
 
+# --- Seção de Geração e Salvamento de Tabelas ---
+
+# Tabela 1: População Residente por Sexo e Razão de Sexo
+pop_hm_2010 <- acre_idade2010_simples |> group_by(Sexo) |> summarise(Populacao = sum(Populacao))
+razao_sexo_2010 <- (pop_hm_2010$Populacao[pop_hm_2010$Sexo == "Homens"] / pop_hm_2010$Populacao[pop_hm_2010$Sexo == "Mulheres"]) * 100
+
+pop_hm_2022 <- acre_idade2022_simples |> group_by(Sexo) |> summarise(Populacao = sum(Populacao))
+razao_sexo_2022 <- (pop_hm_2022$Populacao[pop_hm_2022$Sexo == "Homens"] / pop_hm_2022$Populacao[pop_hm_2022$Sexo == "Mulheres"]) * 100
+
+tabela_pop_razao <- tibble(
+  Ano = c(2010, 2022),
+  `População Homens` = c(
+    pop_hm_2010$Populacao[pop_hm_2010$Sexo == "Homens"],
+    pop_hm_2022$Populacao[pop_hm_2022$Sexo == "Homens"]
+  ),
+  `População Mulheres` = c(
+    pop_hm_2010$Populacao[pop_hm_2010$Sexo == "Mulheres"],
+    pop_hm_2022$Populacao[pop_hm_2022$Sexo == "Mulheres"]
+  ),
+  `População Total` = c(
+    sum(pop_hm_2010$Populacao),
+    sum(pop_hm_2022$Populacao)
+  ),
+  `Razão de Sexo` = c(razao_sexo_2010, razao_sexo_2022)
+)
+write.csv(tabela_pop_razao, "tabelas_resultados/tabela_populacao_razao_sexo.csv", row.names = FALSE)
+
+
+# Tabela 2: Idade Mediana por Sexo
+idade_mediana_acre_2010 <- acre_idade2010_simples |>
+  group_by(Ano, Sexo) |>
+  arrange(Idade) |>
+  mutate(
+    populacao_acumulada = cumsum(Populacao),
+    populacao_total = sum(Populacao)
+  ) |>
+  filter(populacao_acumulada >= populacao_total / 2) |>
+  summarise(idade_mediana = first(Idade), .groups = "drop")
+
+idade_mediana_acre_2022 <- acre_idade2022_simples |>
+  group_by(Ano, Sexo) |>
+  arrange(Idade) |>
+  mutate(
+    populacao_acumulada = cumsum(Populacao),
+    populacao_total = sum(Populacao)
+  ) |>
+  filter(populacao_acumulada >= populacao_total / 2) |>
+  summarise(idade_mediana = first(Idade), .groups = "drop")
+
+tabela_idade_mediana <- bind_rows(idade_mediana_acre_2010, idade_mediana_acre_2022)
+write.csv(tabela_idade_mediana, "tabelas_resultados/tabela_idade_mediana.csv", row.names = FALSE)
+
+
+# Tabela 3: Razão de Dependência por Sexo
+razao_dependencia_acre_2010 <- acre_idade2010_simples |>
+  mutate(
+    categoria_idade = case_when(Idade >= 0 & Idade <= 14 ~ "Jovem", Idade >= 15 & Idade <= 64 ~ "Ativo", Idade >= 65 ~ "Idoso")
+  ) |>
+  group_by(Ano, Sexo) |>
+  summarise(
+    pop_jovem = sum(Populacao[categoria_idade == "Jovem"], na.rm = TRUE),
+    pop_ativa = sum(Populacao[categoria_idade == "Ativo"], na.rm = TRUE),
+    pop_idosa = sum(Populacao[categoria_idade == "Idoso"], na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(
+    razao_dep_jovem = (pop_jovem / pop_ativa) * 100,
+    razao_dep_idosa = (pop_idosa / pop_ativa) * 100,
+    razao_dep_total = ((pop_jovem + pop_idosa) / pop_ativa) * 100
+  ) |>
+  select(Ano, Sexo, `Razão Dep. Jovem` = razao_dep_jovem, `Razão Dep. Idosa` = razao_dep_idosa, `Razão Dep. Total` = razao_dep_total)
+
+razao_dependencia_acre_2022 <- acre_idade2022_simples |>
+  mutate(
+    categoria_idade = case_when(Idade >= 0 & Idade <= 14 ~ "Jovem", Idade >= 15 & Idade <= 64 ~ "Ativo", Idade >= 65 ~ "Idoso")
+  ) |>
+  group_by(Ano, Sexo) |>
+  summarise(
+    pop_jovem = sum(Populacao[categoria_idade == "Jovem"], na.rm = TRUE),
+    pop_ativa = sum(Populacao[categoria_idade == "Ativo"], na.rm = TRUE),
+    pop_idosa = sum(Populacao[categoria_idade == "Idoso"], na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(
+    razao_dep_jovem = (pop_jovem / pop_ativa) * 100,
+    razao_dep_idosa = (pop_idosa / pop_ativa) * 100,
+    razao_dep_total = ((pop_jovem + pop_idosa) / pop_ativa) * 100
+  ) |>
+  select(Ano, Sexo, `Razão Dep. Jovem` = razao_dep_jovem, `Razão Dep. Idosa` = razao_dep_idosa, `Razão Dep. Total` = razao_dep_total)
+
+tabela_razao_dependencia <- bind_rows(razao_dependencia_acre_2010, razao_dependencia_acre_2022)
+write.csv(tabela_razao_dependencia, "tabelas_resultados/tabela_razao_dependencia.csv", row.names = FALSE)
+
+
+# Tabela 4: Índice de Envelhecimento por Sexo
+indice_envelhecimento_acre_2010 <- acre_idade2010_simples |>
+  mutate(categoria_idade = case_when(Idade >= 0 & Idade <= 14 ~ "Jovem", Idade >= 65 ~ "Idoso")) |>
+  group_by(Ano, Sexo) |>
+  summarise(pop_jovem = sum(Populacao[categoria_idade == "Jovem"], na.rm = TRUE),
+            pop_idosa = sum(Populacao[categoria_idade == "Idoso"], na.rm = TRUE),
+            .groups = "drop") |>
+  mutate(indice_envelhecimento = (pop_idosa / pop_jovem) * 100) |>
+  select(Ano, Sexo, `Índice de Envelhecimento` = indice_envelhecimento)
+
+indice_envelhecimento_acre_2022 <- acre_idade2022_simples |>
+  mutate(categoria_idade = case_when(Idade >= 0 & Idade <= 14 ~ "Jovem", Idade >= 65 ~ "Idoso")) |>
+  group_by(Ano, Sexo) |>
+  summarise(pop_jovem = sum(Populacao[categoria_idade == "Jovem"], na.rm = TRUE),
+            pop_idosa = sum(Populacao[categoria_idade == "Idoso"], na.rm = TRUE),
+            .groups = "drop") |>
+  mutate(indice_envelhecimento = (pop_idosa / pop_jovem) * 100) |>
+  select(Ano, Sexo, `Índice de Envelhecimento` = indice_envelhecimento)
+
+tabela_indice_envelhecimento <- bind_rows(indice_envelhecimento_acre_2010, indice_envelhecimento_acre_2022)
+write.csv(tabela_indice_envelhecimento, "tabelas_resultados/tabela_indice_envelhecimento.csv", row.names = FALSE)
+
+
+# Tabela 5: Índice de Myers (2010 e 2022)
+pop_idade_2010 <- acre_idade2010_simples |>
+  group_by(Idade) |>
+  summarise(Pop = sum(Populacao), .groups = "drop") |>
+  mutate(digito_final = Idade %% 10)
+pop_por_digito_2010 <- tapply(pop_idade_2010$Pop, pop_idade_2010$digito_final, sum)
+f_i_2010 <- pop_por_digito_2010 / sum(pop_por_digito_2010)
+indice_myers_2010 <- 100 * sum(abs(f_i_2010 - 1/10))
+
+pop_idade_2022 <- acre_idade2022_simples |>
+  group_by(Idade) |>
+  summarise(Pop = sum(Populacao), .groups = "drop") |>
+  mutate(digito_final = Idade %% 10)
+pop_por_digito_2022 <- tapply(pop_idade_2022$Pop, pop_idade_2022$digito_final, sum)
+f_i_2022 <- pop_por_digito_2022 / sum(pop_por_digito_2022)
+indice_myers_2022 <- 100 * sum(abs(f_i_2022 - 1/10))
+
+tabela_myers <- tibble(
+  Ano = c(2010, 2022),
+  `Índice de Myers` = c(indice_myers_2010, indice_myers_2022)
+)
+write.csv(tabela_myers, "tabelas_resultados/tabela_indice_myers.csv", row.names = FALSE)
